@@ -8,7 +8,6 @@ import sttp.client3.httpclient.zio.HttpClientZioBackend
 import sttp.model.{Header, Method, Uri}
 import zio.{ZIOAppDefault, _}
 import zio.logging.backend.SLF4J
-import io.circe.syntax._
 import zio.stream.{ZPipeline, ZStream}
 
 import scala.util.Try
@@ -34,7 +33,6 @@ object HttpClientMain extends ZIOAppDefault {
 
   def countStreamElementsRemotely(client: SttpClient, ctns: ZStream[Any, Throwable, String]): Task[Int] = {
     val byteStream = ctns
-      .map(c => c.asJson.noSpaces)
       .via(ZPipeline.intersperse("\n") >>> ZPipeline.utf8Encode)
     val request = client3.basicRequest
       .post(countElementsUrl)
