@@ -1,56 +1,53 @@
 package zsttp
 
-import sttp.capabilities.zio.ZioStreams
-import sttp.client3
-import sttp.client3.asynchttpclient.zio.AsyncHttpClientZioBackend
-import sttp.client3.httpclient.zio.SttpClient
-import sttp.client3.{Response, UriContext, asStreamAlwaysUnsafe}
-import sttp.client3.httpclient.zio.HttpClientZioBackend
-import sttp.model.{Header, MediaType, Method, Uri}
-import zio.{ZIOAppDefault, _}
+import zio.http.netty.NettyConfig
+import zio.http.{Body, Client, DnsResolver, Header, Headers, MediaType, Request, Response, URL, ZClient}
 import zio.logging.backend.SLF4J
 import zio.stream.{ZPipeline, ZStream}
+import zio.{ZIOAppDefault, _}
 
 import scala.util.Try
 
-object HttpClientMain extends ZIOAppDefault {
+object ZioHttpClientMain extends ZIOAppDefault {
   override val bootstrap = Runtime.removeDefaultLoggers >>> SLF4J.slf4j
 
   private val countElementsUrl =
-    Uri.unsafeParse(s"http://localhost:${HttpServerApplication.HttpServerPort}/count-elements")
+    URL.decode(s"http://localhost:${HttpServerApplication.HttpServerPort}/count-elements").toOption.get
 
   private def extractStringContentIfSucceeded(
-      response: Response[String],
+      response: Response,
       actionDescription: String,
   ): Task[String] = {
-    if (response.isSuccess) {
-      ZIO.succeed(response.body)
+    if (response.status.isSuccess) {
+      response.body.asString
     } else {
       ZIO.fail(
-        new Exception(s"Service responded with error while $actionDescription: ${response.code.code}")
+        new Exception(s"Service responded with error while $actionDescription: ${response.status.code}")
       )
     }
   }
 
-  def countStreamElementsRemotely(client: SttpClient, ctns: ZStream[Any, Throwable, String]): Task[Int] = {
+  def countStreamElementsRemotely(client: Client, ctns: ZStream[Any, Throwable, String]): Task[Int] = {
     val byteStream = ctns
       .via(ZPipeline.intersperse("\n") >>> ZPipeline.utf8Encode)
-    val request = client3.basicRequest
-      .post(countElementsUrl)
-      .streamBody(ZioStreams)(byteStream)
-      .response(client3.asStringAlways)
+    val content = Body.fromStreamChunked(byteStream)
+    val request = Request
+      .post(countElementsUrl, content)
+      .addHeaders(
+        Headers(Header.ContentType(MediaType.application.json)) ++ Headers(Header.TransferEncoding.Chunked)
+      )
     val program = for {
-      response <- client.send(request)
+      response <- client.request(request)
       content <- extractStringContentIfSucceeded(response, "counting stream elements remotely")
       id <- ZIO.fromEither(Try.apply(content.toInt).toEither)
     } yield id
-    program
+    ZIO.scoped(program)
   }
 
   override def run = {
     val program = for {
       _ <- ZIO.logInfo("Trying sttp streaming")
-      client <- ZIO.service[SttpClient]
+      client <- ZIO.service[Client]
       stream = ZStream.fromIterable(List("1", "2", "4", "8", "9"))
       count <- countStreamElementsRemotely(client, stream)
       _ <- ZIO.logInfo(s"Received: $count")
@@ -58,8 +55,10 @@ object HttpClientMain extends ZIOAppDefault {
     program
       .provide(
         zio.Runtime.removeDefaultLoggers,
-        HttpClientZioBackend.layer(),
-//        AsyncHttpClientZioBackend.layer(),
+        Client.live,
+        ZLayer.succeed(ZClient.Config.default),
+        DnsResolver.default,
+        ZLayer.succeed(NettyConfig.default),
       )
       .tapErrorCause { c =>
         ZIO.logErrorCause("Exception occurred while running the try-out", c)

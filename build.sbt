@@ -2,7 +2,7 @@ name := "sttp-zio-streaming-response"
 
 version := "1.0.0"
 
-scalaVersion := "2.13.6"
+scalaVersion := "2.13.15"
 
 enablePlugins(JavaAppPackaging)
 

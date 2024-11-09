@@ -20,7 +20,8 @@ object Dependencies {
     "dev.zio" %% "zio-test-sbt" % Version.zio % Test,
 
     "com.softwaremill.sttp.client3" %% "core" % Version.sttp,
-    "com.softwaremill.sttp.client3" %% "zio" % Version.sttp
+    "com.softwaremill.sttp.client3" %% "zio" % Version.sttp,
+    "com.softwaremill.sttp.client3" %% "async-http-client-backend-zio" % Version.sttp,
   )
 
 }
