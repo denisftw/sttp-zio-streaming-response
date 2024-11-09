@@ -30,8 +30,8 @@ object Version {
   val zio = "2.0.10"
   val slf4j = "1.7.32"
   val logBack = "1.2.5"
-  val zioHttp = "3.0.0-RC9"
+  val zioHttp = "3.0.1"
   val logging = "2.1.1"
   val logbackContrib = "0.1.5"
-  val sttp = "3.9.7"
+  val sttp = "3.10.1"
 }
